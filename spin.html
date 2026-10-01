@@ -70,7 +70,6 @@
 <div class="debug-panel" id="debugPanel">⏳ initializing...</div>
 
 <script>
-  // ============= Debug Logger =============
   const debugPanel = document.getElementById('debugPanel');
   function dbg(msg) {
     console.log(msg);
@@ -79,29 +78,22 @@
   }
 
   dbg('▶ بدء التحميل');
-  dbg('🕐 ' + new Date().toLocaleTimeString());
 
-  // ============= Telegram WebApp =============
   const tg = window.Telegram?.WebApp;
   if (tg) {
-    dbg('✅ Telegram.WebApp موجود');
     try {
       tg.ready();
       tg.expand();
       tg.setHeaderColor('#050505');
       tg.setBackgroundColor('#050505');
-      dbg('✅ tg.ready() + expand()');
-      dbg('📱 version: ' + (tg.version || 'unknown'));
-      dbg('📱 platform: ' + (tg.platform || 'unknown'));
+      dbg('✅ WebApp جاهز');
     } catch (e) {
       dbg('❌ خطأ tg init: ' + e.message);
     }
   } else {
     dbg('❌ Telegram.WebApp غير موجود!');
-    dbg('💡 افتح الرابط من داخل تلغرام');
   }
 
-  // ============= قراءة البيانات من URL =============
   const params = new URLSearchParams(window.location.search);
   let prizes = [], eligible = true;
   try {
@@ -110,12 +102,10 @@
       const p = JSON.parse(decodeURIComponent(d));
       prizes = p.prizes || [];
       eligible = p.eligible !== false;
-      dbg('✅ جائزة مستلمة: ' + prizes.length);
-    } else {
-      dbg('⚠️ لا توجد بيانات في URL');
+      dbg('✅ ' + prizes.length + ' جوائز');
     }
   } catch(e) {
-    dbg('❌ خطأ قراءة البيانات: ' + e.message);
+    dbg('❌ خطأ البيانات: ' + e.message);
   }
 
   if (!prizes.length) {
@@ -127,12 +117,10 @@
       { id:5, label:'😔 حظ أوفر', type:'none', amount:0, weight:40 },
       { id:6, label:'🎁 3,000 ل.س', type:'cash', amount:3000, weight:5 },
     ];
-    dbg('⚠️ استخدام جوائز افتراضية');
   }
 
   dbg('eligible: ' + eligible);
 
-  // ============= رسم العجلة =============
   const canvas = document.getElementById('wheel');
   const ctx = canvas.getContext('2d');
   const SIZE = canvas.width, C = SIZE/2, R = C - 25;
@@ -189,10 +177,8 @@
   if (!eligible) {
     cooldownMsg.innerHTML = '⏰ لم يحن وقت اللفة بعد';
     spinBtn.disabled = true;
-    dbg('🔒 زر ابدأ معطل (كولداون)');
   } else {
     cooldownMsg.innerHTML = '🎁 اضغط <b>ابدأ</b> للفوز بجائزة';
-    dbg('✅ زر ابدأ مفعل');
   }
 
   let isSpinning = false;
@@ -210,13 +196,9 @@
   }
 
   function spin(isTest) {
-    dbg('▶ spin called, isTest=' + isTest);
-    if (isSpinning) { dbg('⚠️ قيد الدوران'); return; }
-
+    if (isSpinning) return;
     if (!isTest && !eligible) {
-      dbg('❌ eligible=false');
       if (tg && tg.showAlert) tg.showAlert('⏰ لم يحن وقت اللفة بعد');
-      else alert('⏰ لم يحن وقت اللفة بعد');
       return;
     }
 
@@ -224,7 +206,7 @@
     spinBtn.disabled = true;
 
     const winner = pickWinner();
-    dbg('🎯 Winner index: ' + winner + ' → ' + prizes[winner].label);
+    dbg('🎯 فائز: ' + prizes[winner].label);
 
     const segDeg = 360 / N;
     const winnerMid = winner * segDeg + segDeg/2;
@@ -236,41 +218,23 @@
 
     setTimeout(() => {
       const prize = prizes[winner];
-      dbg('🏁 spin finished');
+      dbg('🏁 انتهى الدوران');
 
-      // ✅ تجريبي
+      // تجريبي
       if (isTest) {
         showResult(prize, true);
         isSpinning = false; spinBtn.disabled = false;
-        dbg('🧪 نتيجة تجريبية فقط');
         return;
       }
 
-      // ============================================
-      // ✅ اختبار 1: هل tg موجود؟
-      // ============================================
-      if (!tg) {
-        dbg('❌ tg غير موجود - لا يمكن الإرسال');
-        alert('❌ خطأ: Telegram WebApp غير متاح');
+      // ============ إرسال تلقائي ============
+      if (!tg || typeof tg.sendData !== 'function') {
+        dbg('❌ WebApp/sendData غير متاح');
+        alert('❌ خطأ: WebApp غير متاح. حدّث تلغرام.');
         isSpinning = false; spinBtn.disabled = false;
         return;
       }
-      dbg('✅ tg موجود');
 
-      // ============================================
-      // ✅ اختبار 2: هل sendData موجود؟
-      // ============================================
-      if (typeof tg.sendData !== 'function') {
-        dbg('❌ tg.sendData غير موجود');
-        alert('❌ خطأ: sendData غير موجود في هذه النسخة\n\nحدّث تطبيق تلغرام');
-        isSpinning = false; spinBtn.disabled = false;
-        return;
-      }
-      dbg('✅ tg.sendData موجود');
-
-      // ============================================
-      // ✅ تجهيز البيانات
-      // ============================================
       const payload = {
         action: 'spin_result',
         prize_id: prize.id,
@@ -278,45 +242,21 @@
         prize_type: prize.type,
         amount: prize.amount || 0
       };
+
       const payloadStr = JSON.stringify(payload);
-      dbg('📤 البيانات: ' + payloadStr);
+      dbg('📤 إرسال: ' + payloadStr.substring(0, 100));
 
-      // ============================================
-      // ✅ اختبار 3: اعرض تأكيد للمستخدم
-      // ============================================
-      if (tg.showConfirm) {
-        tg.showConfirm(
-          '📤 سيتم إرسال:\n' + payloadStr.substring(0, 150),
-          function(confirmed) {
-            if (confirmed) {
-              sendIt();
-            } else {
-              dbg('❌ المستخدم ألغى الإرسال');
-              isSpinning = false; spinBtn.disabled = false;
-            }
-          }
-        );
-      } else {
-        // fallback
-        if (confirm('📤 سيتم إرسال:\n' + payloadStr.substring(0, 150))) {
-          sendIt();
-        } else {
-          isSpinning = false; spinBtn.disabled = false;
-        }
-      }
-
-      function sendIt() {
-        try {
-          tg.sendData(payloadStr);
-          dbg('✅ تم الإرسال بنجاح');
-          setTimeout(() => {
-            try { tg.close(); } catch(e) {}
-          }, 500);
-        } catch(e) {
-          dbg('❌ فشل الإرسال: ' + e.message);
-          alert('❌ فشل الإرسال:\n' + e.message);
-          isSpinning = false; spinBtn.disabled = false;
-        }
+      try {
+        tg.sendData(payloadStr);
+        dbg('✅ تم الإرسال بنجاح');
+        // انتظر قليلاً ثم أغلق
+        setTimeout(() => {
+          try { tg.close(); } catch(e) {}
+        }, 300);
+      } catch(e) {
+        dbg('❌ فشل الإرسال: ' + e.message);
+        alert('❌ فشل الإرسال: ' + e.message);
+        isSpinning = false; spinBtn.disabled = false;
       }
     }, 5200);
   }
@@ -342,7 +282,7 @@
   tryBtn.addEventListener('click', () => spin(true));
   resultClose.addEventListener('click', () => resultOverlay.classList.remove('show'));
 
-  dbg('✅ جاهز');
+  dbg('✅ جاهز - Version 2.0');
 </script>
 </body>
 </html>
