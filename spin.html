@@ -1,1 +1,381 @@
 
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SCARFACE - عجلة الحظ</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 0;
+    background: #050505;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    color: #fff;
+    overflow-x: hidden;
+    user-select: none;
+    min-height: 100vh;
+  }
+  #app { display: flex; flex-direction: column; align-items: center; padding: 15px; }
+  .header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .logo-text { color: #d4af37; font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #f5e08c, #d4af37, #8b6914);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; box-shadow: 0 0 12px rgba(212,175,55,.5);
+  }
+  .title {
+    font-size: 26px; font-weight: bold; margin: 5px 0 15px;
+    text-shadow: 0 2px 8px rgba(212,175,55,.4);
+  }
+  .title span { color: #d4af37; }
+
+  .wheel-container {
+    position: relative;
+    width: min(340px, 92vw);
+    height: min(340px, 92vw);
+    margin: 5px auto 15px;
+  }
+  .pointer {
+    position: absolute; top: -8px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 32px solid #d4af37;
+    z-index: 10;
+    filter: drop-shadow(0 3px 6px rgba(212,175,55,.7));
+  }
+  .pointer::after {
+    content: ''; position: absolute; top: -4px; left: -12px;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 24px solid #8b6914;
+    z-index: -1;
+  }
+  canvas {
+    display: block; width: 100%; height: 100%;
+    will-change: transform;
+    filter: drop-shadow(0 0 20px rgba(212,175,55,.3));
+  }
+  .center-btn {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 88px; height: 88px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #2a2a2a, #1a1a1a, #0a0a0a);
+    border: 4px solid #d4af37;
+    color: #d4af37;
+    font-size: 22px; font-weight: bold;
+    cursor: pointer; z-index: 5;
+    box-shadow:
+      0 0 24px rgba(212,175,55,.6),
+      inset 0 -4px 10px rgba(0,0,0,.7),
+      inset 0 4px 12px rgba(212,175,55,.2);
+    font-family: inherit;
+    transition: transform .1s;
+  }
+  .center-btn:active { transform: translate(-50%,-50%) scale(.94); }
+  .center-btn:disabled { cursor: not-allowed; opacity: .85; }
+  .center-btn .arrow { font-size: 22px; }
+
+  .info { width: 100%; max-width: 340px; text-align: center; }
+  .cooldown-msg {
+    font-size: 15px; color: #ccc; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .unavailable-btn, .try-btn {
+    display: block; width: 100%;
+    padding: 16px; border-radius: 14px;
+    font-size: 16px; font-weight: bold;
+    margin: 10px auto; font-family: inherit;
+  }
+  .unavailable-btn {
+    background: #2a2a2a; color: #888; border: none;
+    cursor: not-allowed;
+  }
+  .divider {
+    display: flex; align-items: center; width: 100%;
+    margin: 14px 0; color: #555; font-size: 13px;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: #222;
+  }
+  .divider span { padding: 0 12px; }
+  .try-btn {
+    background: transparent; color: #fff;
+    border: 2px solid #d4af37;
+    cursor: pointer; transition: background .2s;
+  }
+  .try-btn:active { background: rgba(212,175,55,.1); }
+  .footer-note {
+    font-size: 11px; color: #555;
+    text-align: center; margin-top: 15px; padding: 0 10px;
+    line-height: 1.5;
+  }
+  .result-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.92);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+    animation: fadeIn .3s;
+  }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  .result-overlay.show { display: flex; }
+  .result-card {
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border: 2px solid #d4af37;
+    border-radius: 22px; padding: 30px 25px;
+    text-align: center; max-width: 320px; width: 100%;
+    box-shadow: 0 0 40px rgba(212,175,55,.4);
+    animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn { from { transform: scale(.7); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+  .result-card h2 {
+    color: #d4af37; font-size: 26px; margin: 0 0 18px;
+  }
+  .result-prize {
+    font-size: 22px; color: #fff;
+    margin-bottom: 12px; font-weight: bold;
+  }
+  .result-amount {
+    font-size: 19px; color: #4ade80;
+    margin-bottom: 22px; font-weight: bold;
+  }
+  .result-close {
+    background: linear-gradient(135deg, #f5e08c, #d4af37);
+    color: #0a0a0a; border: none;
+    padding: 12px 34px; border-radius: 10px;
+    font-size: 15px; font-weight: bold;
+    cursor: pointer; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="logo-text">SCARFACE</div>
+    <div class="logo-icon">🎡</div>
+  </div>
+  <div class="title">عجلة الحظ <span>🎡</span></div>
+
+  <div class="wheel-container">
+    <div class="pointer"></div>
+    <canvas id="wheel" width="600" height="600"></canvas>
+    <button class="center-btn" id="spinBtn">ابدأ</button>
+  </div>
+
+  <div class="info">
+    <div class="cooldown-msg" id="cooldownMsg">⏰ التحويرة التالية خلال قريباً</div>
+    <button class="unavailable-btn" id="unavailableBtn">🔒 غير متاحة الآن</button>
+    <div class="divider"><span>أو</span></div>
+    <button class="try-btn" id="tryBtn">🎡 لفّة تجريبية</button>
+    <div class="footer-note">اللفة التجريبية مخصصة لتجربة العجلة فقط ولا تحتسب جوائز حقيقية</div>
+  </div>
+</div>
+
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <h2 id="resultTitle">🎉 مبروك!</h2>
+    <div class="result-prize" id="resultPrize"></div>
+    <div class="result-amount" id="resultAmount"></div>
+    <button class="result-close" id="resultClose">حسناً</button>
+  </div>
+</div>
+
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#050505'); tg.setBackgroundColor('#050505'); }
+
+  const params = new URLSearchParams(window.location.search);
+  let prizes = [], eligible = true, mode = 'real';
+  try {
+    const d = params.get('data');
+    if (d) { const p = JSON.parse(decodeURIComponent(d)); prizes = p.prizes || []; eligible = p.eligible !== false; mode = p.mode || 'real'; }
+  } catch(e){}
+
+  if (!prizes.length) {
+    prizes = [
+      { id:1, label:'🔄 لفة إضافية', type:'respin', amount:0, weight:15 },
+      { id:2, label:'💰 1,000 ل.س', type:'cash', amount:1000, weight:25 },
+      { id:3, label:'💵 10,000 ل.س', type:'cash', amount:10000, weight:8 },
+      { id:4, label:'💎 200,000 ل.س', type:'cash', amount:200000, weight:1 },
+      { id:5, label:'😔 حظ أوفر', type:'none', amount:0, weight:40 },
+      { id:6, label:'🎁 3,000 ل.س', type:'cash', amount:3000, weight:5 },
+    ];
+  }
+
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+  const SIZE = canvas.width, C = SIZE/2, R = C - 25;
+  const N = prizes.length;
+  const SEG = (2*Math.PI) / N;
+
+  // ألوان متناوبة (أحمر داكن/أسود) كما في الصورة
+  const COLORS = ['#3d0e0e', '#141414', '#3d0e0e', '#141414', '#3d0e0e', '#141414'];
+
+  function drawWheel() {
+    ctx.clearRect(0,0,SIZE,SIZE);
+
+    // الحلقة الذهبية الخارجية
+    ctx.beginPath();
+    ctx.arc(C, C, R + 14, 0, 2*Math.PI);
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 3; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(C, C, R + 8, 0, 2*Math.PI);
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 8; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(C, C, R + 1, 0, 2*Math.PI);
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 2; ctx.stroke();
+
+    // القطاعات
+    for (let i = 0; i < N; i++) {
+      const start = i * SEG - Math.PI/2;
+      const end = start + SEG;
+
+      ctx.beginPath();
+      ctx.moveTo(C, C);
+      ctx.arc(C, C, R, start, end);
+      ctx.closePath();
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ctx.fill();
+
+      // خط ذهبي فاصل
+      ctx.beginPath();
+      ctx.moveTo(C, C);
+      ctx.lineTo(C + R * Math.cos(start), C + R * Math.sin(start));
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    // النصوص
+    for (let i = 0; i < N; i++) {
+      const mid = i * SEG + SEG/2 - Math.PI/2;
+      const lr = R * 0.68;
+      const x = C + lr * Math.cos(mid);
+      const y = C + lr * Math.sin(mid);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(mid + Math.PI/2);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 22px Tahoma, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+      let label = prizes[i].label;
+      // إزالة الإيموجي من الوسط لتقسيم أفضل
+      const parts = label.split(' ');
+      if (parts.length > 2) {
+        const mid_p = Math.ceil(parts.length/2);
+        ctx.fillText(parts.slice(0, mid_p).join(' '), 0, -13);
+        ctx.fillText(parts.slice(mid_p).join(' '), 0, 13);
+      } else {
+        ctx.fillText(label, 0, 0);
+      }
+      ctx.restore();
+    }
+
+    // الدائرة الوسطى
+    ctx.beginPath();
+    ctx.arc(C, C, 95, 0, 2*Math.PI);
+    ctx.fillStyle = '#0a0a0a'; ctx.fill();
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(C, C, 85, 0, 2*Math.PI);
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  drawWheel();
+
+  const spinBtn = document.getElementById('spinBtn');
+  const cooldownMsg = document.getElementById('cooldownMsg');
+  const tryBtn = document.getElementById('tryBtn');
+  const resultOverlay = document.getElementById('resultOverlay');
+  const resultTitle = document.getElementById('resultTitle');
+  const resultPrize = document.getElementById('resultPrize');
+  const resultAmount = document.getElementById('resultAmount');
+  const resultClose = document.getElementById('resultClose');
+
+  if (!eligible) {
+    cooldownMsg.innerHTML = '⏰ لم يحن وقت اللفة بعد';
+    spinBtn.disabled = true;
+  } else {
+    cooldownMsg.innerHTML = '🎁 اضغط <b>ابدأ</b> للفوز بجائزة';
+  }
+
+  let isSpinning = false;
+  let rotation = 0;
+
+  function pickWinner() {
+    const total = prizes.reduce((s,p) => s + Math.max(0, p.weight||0), 0);
+    if (total <= 0) return Math.floor(Math.random() * N);
+    let r = Math.random() * total;
+    for (let i = 0; i < N; i++) {
+      r -= Math.max(0, prizes[i].weight||0);
+      if (r <= 0) return i;
+    }
+    return N-1;
+  }
+
+  function spin(isTest) {
+    if (isSpinning) return;
+    if (!isTest && !eligible) { if (tg) tg.showAlert('⏰ لم يحن وقت اللفة بعد'); return; }
+
+    isSpinning = true;
+    spinBtn.disabled = true;
+
+    const winner = pickWinner();
+    const segDeg = 360 / N;
+    const winnerMid = winner * segDeg + segDeg/2;
+    const extra = (5 + Math.floor(Math.random()*3)) * 360;
+    // نريد أن يقع منتصف القطاع الفائز عند الأعلى (0deg)
+    const targetAngle = extra + (360 - winnerMid);
+    rotation += targetAngle;
+
+    canvas.style.transition = 'transform 5s cubic-bezier(.17,.67,.12,.99)';
+    canvas.style.transform = `rotate(${rotation}deg)`;
+
+    setTimeout(() => {
+      const prize = prizes[winner];
+      if (isTest) {
+        showResult(prize, true);
+        isSpinning = false; spinBtn.disabled = false;
+        return;
+      }
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          action: 'spin_result',
+          prize_id: prize.id,
+          prize_label: prize.label,
+          prize_type: prize.type,
+          amount: prize.amount || 0
+        }));
+        tg.close();
+      }
+    }, 5200);
+  }
+
+  function showResult(prize, isTest) {
+    if (prize.type === 'cash' && prize.amount > 0) {
+      resultTitle.textContent = isTest ? '🧪 نتيجة تجريبية' : '🎉 مبروك!';
+      resultPrize.textContent = prize.label;
+      resultAmount.textContent = `+${prize.amount.toLocaleString()} ل.س`;
+    } else if (prize.type === 'respin') {
+      resultTitle.textContent = '🎉 يا بختك!';
+      resultPrize.textContent = prize.label;
+      resultAmount.textContent = '🔄 يمكنك اللف مرة أخرى';
+    } else {
+      resultTitle.textContent = '😔 حظ أوفر';
+      resultPrize.textContent = prize.label;
+      resultAmount.textContent = '🍀 حظاً موفقاً في المرة القادمة';
+    }
+    resultOverlay.classList.add('show');
+  }
+
+  spinBtn.addEventListener('click', () => spin(false));
+  tryBtn.addEventListener('click', () => spin(true));
+  resultClose.addEventListener('click', () => resultOverlay.classList.remove('show'));
+</script>
+</body>
+</html>
