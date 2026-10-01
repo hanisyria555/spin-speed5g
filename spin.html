@@ -38,7 +38,7 @@
   .result-prize { font-size: 22px; color: #fff; margin-bottom: 12px; font-weight: bold; }
   .result-amount { font-size: 19px; color: #4ade80; margin-bottom: 22px; font-weight: bold; }
   .result-close { background: linear-gradient(135deg, #f5e08c, #d4af37); color: #0a0a0a; border: none; padding: 12px 34px; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; font-family: inherit; }
-  .debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.85); color: #0f0; font-family: monospace; font-size: 10px; padding: 4px 8px; max-height: 80px; overflow-y: auto; z-index: 9999; border-top: 1px solid #333; }
+  .debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.85); color: #0f0; font-family: monospace; font-size: 10px; padding: 4px 8px; max-height: 90px; overflow-y: auto; z-index: 9999; border-top: 1px solid #333; }
 </style>
 </head>
 <body>
@@ -70,6 +70,7 @@
 <div class="debug-panel" id="debugPanel">⏳ initializing...</div>
 
 <script>
+  // ============= Debug Logger =============
   const debugPanel = document.getElementById('debugPanel');
   function dbg(msg) {
     console.log(msg);
@@ -80,6 +81,7 @@
   dbg('▶ بدء التحميل');
   dbg('🕐 ' + new Date().toLocaleTimeString());
 
+  // ============= Telegram WebApp =============
   const tg = window.Telegram?.WebApp;
   if (tg) {
     dbg('✅ Telegram.WebApp موجود');
@@ -89,13 +91,17 @@
       tg.setHeaderColor('#050505');
       tg.setBackgroundColor('#050505');
       dbg('✅ tg.ready() + expand()');
+      dbg('📱 version: ' + (tg.version || 'unknown'));
+      dbg('📱 platform: ' + (tg.platform || 'unknown'));
     } catch (e) {
       dbg('❌ خطأ tg init: ' + e.message);
     }
   } else {
     dbg('❌ Telegram.WebApp غير موجود!');
+    dbg('💡 افتح الرابط من داخل تلغرام');
   }
 
+  // ============= قراءة البيانات من URL =============
   const params = new URLSearchParams(window.location.search);
   let prizes = [], eligible = true;
   try {
@@ -126,6 +132,7 @@
 
   dbg('eligible: ' + eligible);
 
+  // ============= رسم العجلة =============
   const canvas = document.getElementById('wheel');
   const ctx = canvas.getContext('2d');
   const SIZE = canvas.width, C = SIZE/2, R = C - 25;
@@ -208,7 +215,8 @@
 
     if (!isTest && !eligible) {
       dbg('❌ eligible=false');
-      if (tg) tg.showAlert('⏰ لم يحن وقت اللفة بعد');
+      if (tg && tg.showAlert) tg.showAlert('⏰ لم يحن وقت اللفة بعد');
+      else alert('⏰ لم يحن وقت اللفة بعد');
       return;
     }
 
@@ -230,30 +238,39 @@
       const prize = prizes[winner];
       dbg('🏁 spin finished');
 
+      // ✅ تجريبي
       if (isTest) {
         showResult(prize, true);
-        isSpinning = false;
-        spinBtn.disabled = false;
+        isSpinning = false; spinBtn.disabled = false;
         dbg('🧪 نتيجة تجريبية فقط');
         return;
       }
 
+      // ============================================
+      // ✅ اختبار 1: هل tg موجود؟
+      // ============================================
       if (!tg) {
-        dbg('❌ tg غير موجود');
-        alert('خطأ: Telegram WebApp غير متاح');
-        isSpinning = false;
-        spinBtn.disabled = false;
+        dbg('❌ tg غير موجود - لا يمكن الإرسال');
+        alert('❌ خطأ: Telegram WebApp غير متاح');
+        isSpinning = false; spinBtn.disabled = false;
         return;
       }
+      dbg('✅ tg موجود');
 
+      // ============================================
+      // ✅ اختبار 2: هل sendData موجود؟
+      // ============================================
       if (typeof tg.sendData !== 'function') {
         dbg('❌ tg.sendData غير موجود');
-        alert('خطأ: sendData غير متاح');
-        isSpinning = false;
-        spinBtn.disabled = false;
+        alert('❌ خطأ: sendData غير موجود في هذه النسخة\n\nحدّث تطبيق تلغرام');
+        isSpinning = false; spinBtn.disabled = false;
         return;
       }
+      dbg('✅ tg.sendData موجود');
 
+      // ============================================
+      // ✅ تجهيز البيانات
+      // ============================================
       const payload = {
         action: 'spin_result',
         prize_id: prize.id,
@@ -261,22 +278,45 @@
         prize_type: prize.type,
         amount: prize.amount || 0
       };
-
       const payloadStr = JSON.stringify(payload);
-      dbg('📤 إرسال: ' + payloadStr.substring(0, 100));
+      dbg('📤 البيانات: ' + payloadStr);
 
-      try {
-        tg.sendData(payloadStr);
-        dbg('✅ تم الإرسال بنجاح');
-        setTimeout(() => {
-          dbg('🚪 إغلاق WebApp');
-          tg.close();
-        }, 300);
-      } catch(e) {
-        dbg('❌ فشل الإرسال: ' + e.message);
-        alert('فشل الإرسال: ' + e.message);
-        isSpinning = false;
-        spinBtn.disabled = false;
+      // ============================================
+      // ✅ اختبار 3: اعرض تأكيد للمستخدم
+      // ============================================
+      if (tg.showConfirm) {
+        tg.showConfirm(
+          '📤 سيتم إرسال:\n' + payloadStr.substring(0, 150),
+          function(confirmed) {
+            if (confirmed) {
+              sendIt();
+            } else {
+              dbg('❌ المستخدم ألغى الإرسال');
+              isSpinning = false; spinBtn.disabled = false;
+            }
+          }
+        );
+      } else {
+        // fallback
+        if (confirm('📤 سيتم إرسال:\n' + payloadStr.substring(0, 150))) {
+          sendIt();
+        } else {
+          isSpinning = false; spinBtn.disabled = false;
+        }
+      }
+
+      function sendIt() {
+        try {
+          tg.sendData(payloadStr);
+          dbg('✅ تم الإرسال بنجاح');
+          setTimeout(() => {
+            try { tg.close(); } catch(e) {}
+          }, 500);
+        } catch(e) {
+          dbg('❌ فشل الإرسال: ' + e.message);
+          alert('❌ فشل الإرسال:\n' + e.message);
+          isSpinning = false; spinBtn.disabled = false;
+        }
       }
     }, 5200);
   }
