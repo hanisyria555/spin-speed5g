@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>عجلة الحظ</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -35,14 +38,7 @@
   .result-prize { font-size: 22px; color: #fff; margin-bottom: 12px; font-weight: bold; }
   .result-amount { font-size: 19px; color: #4ade80; margin-bottom: 22px; font-weight: bold; }
   .result-close { background: linear-gradient(135deg, #f5e08c, #d4af37); color: #0a0a0a; border: none; padding: 12px 34px; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; font-family: inherit; }
-  /* Debug panel */
-  .debug-panel {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(0,0,0,.85); color: #0f0;
-    font-family: monospace; font-size: 10px;
-    padding: 4px 8px; max-height: 80px; overflow-y: auto;
-    z-index: 9999; border-top: 1px solid #333;
-  }
+  .debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.85); color: #0f0; font-family: monospace; font-size: 10px; padding: 4px 8px; max-height: 80px; overflow-y: auto; z-index: 9999; border-top: 1px solid #333; }
 </style>
 </head>
 <body>
@@ -74,7 +70,6 @@
 <div class="debug-panel" id="debugPanel">⏳ initializing...</div>
 
 <script>
-  // ============= Debug Logger =============
   const debugPanel = document.getElementById('debugPanel');
   function dbg(msg) {
     console.log(msg);
@@ -83,8 +78,8 @@
   }
 
   dbg('▶ بدء التحميل');
+  dbg('🕐 ' + new Date().toLocaleTimeString());
 
-  // ============= Telegram WebApp =============
   const tg = window.Telegram?.WebApp;
   if (tg) {
     dbg('✅ Telegram.WebApp موجود');
@@ -101,7 +96,6 @@
     dbg('❌ Telegram.WebApp غير موجود!');
   }
 
-  // ============= قراءة البيانات من URL =============
   const params = new URLSearchParams(window.location.search);
   let prizes = [], eligible = true;
   try {
@@ -132,7 +126,6 @@
 
   dbg('eligible: ' + eligible);
 
-  // ============= رسم العجلة =============
   const canvas = document.getElementById('wheel');
   const ctx = canvas.getContext('2d');
   const SIZE = canvas.width, C = SIZE/2, R = C - 25;
@@ -177,7 +170,6 @@
   }
   drawWheel();
 
-  // ============= المتغيرات =============
   const spinBtn = document.getElementById('spinBtn');
   const cooldownMsg = document.getElementById('cooldownMsg');
   const tryBtn = document.getElementById('tryBtn');
@@ -246,9 +238,8 @@
         return;
       }
 
-      // ✅ إرسال البيانات للبوت
       if (!tg) {
-        dbg('❌ tg غير موجود - لا يمكن الإرسال');
+        dbg('❌ tg غير موجود');
         alert('خطأ: Telegram WebApp غير متاح');
         isSpinning = false;
         spinBtn.disabled = false;
